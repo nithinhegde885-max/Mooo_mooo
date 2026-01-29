@@ -1,0 +1,228 @@
+# -*- coding: utf-8 -*-
+    """
+    Created on Thu Jan 29 09:40:39 2026
+    
+    @author: HP
+    """
+    
+    import tkinter as tk
+    from tkinter import messagebox, ttk
+    import csv, os
+    
+    BG,CARD,FG,BTN,BTN2,INP="#121212","#1e1e1e","#e5e7eb","#2563eb","#374151","#2a2a2a"
+    EMP,REC="employees.csv","recruiters.csv"
+    
+    SKILLS=[
+        "Python","Java","C++","JavaScript","HTML","CSS","SQL",
+        "Data Structures","Algorithms","OOP","Machine Learning",
+        "Data Analysis","AI","Django","Flask","React","Node.js",
+        "Git","Linux","AWS","Cyber Security","Networking"
+    ]
+    
+    HDR={
+        "employee":["username","password","name","mobile","email","gender","age","address","skills"],
+        "recruiter":["username","password","company","contact","email","address","skills"]
+    }
+    
+    session={}
+    
+    def ensure(p,h):
+        if not os.path.exists(p):
+            with open(p,"w",newline="") as f:
+                csv.writer(f).writerow(h)
+    
+    def read(p):
+        if not os.path.exists(p): return []
+        with open(p,newline="") as f:
+            return list(csv.DictReader(f))
+    
+    def write(p,h,r):
+        with open(p,"w",newline="") as f:
+            w=csv.DictWriter(f,fieldnames=h)
+            w.writeheader()
+            w.writerows(r)
+    
+    def find(u):
+        for role,p in [("employee",EMP),("recruiter",REC)]:
+            for r in read(p):
+                if r["username"]==u:
+                    return role,r
+        return None,None
+    
+    root=tk.Tk()
+    root.title("Jobsphere")
+    root.configure(bg=BG)
+    root.protocol("WM_DELETE_WINDOW",root.destroy)
+    
+    style=ttk.Style()
+    style.theme_use("default")
+    style.configure("Dark.TCombobox",fieldbackground=INP,background=INP,foreground=FG)
+    
+    def clear():
+        for w in root.winfo_children():
+            w.destroy()
+    
+    def title(t):
+        tk.Label(root,text=t,font=("Arial",18,"bold"),bg=BG,fg=FG).pack(pady=10)
+    
+    def box():
+        f=tk.Frame(root,bg=CARD,padx=18,pady=15)
+        f.pack(pady=10)
+        return f
+    
+    def entry(p,hide=False):
+        e=tk.Entry(p,bg=INP,fg=FG,insertbackground=FG,show="*" if hide else "")
+        e.pack(fill="x",pady=3)
+        return e
+    
+    def dropdown(p,v):
+        c=ttk.Combobox(p,values=v,state="readonly",style="Dark.TCombobox")
+        c.pack(fill="x",pady=3)
+        return c
+    
+    def button(t,c,pri=True):
+        tk.Button(root,text=t,command=c,width=20,bg=BTN if pri else BTN2,
+                  fg="white",relief="flat").pack(pady=4)
+    
+    def start():
+        clear()
+        title("Jobsphere")
+        button("Register",role_select)
+        button("Login",login)
+        button("Quit",root.destroy,False)
+    
+    def role_select():
+        clear()
+        title("Select Role")
+        f=box()
+        role=tk.StringVar(value="employee")
+    
+        for r in ("employee","recruiter"):
+            tk.Radiobutton(f,text=r.capitalize(),variable=role,value=r,
+                           bg=CARD,fg=FG,selectcolor=CARD).pack(anchor="w")
+    
+        button("Next",lambda:(session.update(role=role.get()),details()))
+        button("Back",start,False)
+    
+    def details():
+        clear()
+        title("Details")
+        f=box()
+        role=session["role"]
+        inp={}
+    
+        for k in HDR[role][2:-1]:
+            lbl="Mobile Number" if k=="mobile" else k.capitalize()
+            tk.Label(f,text=lbl,bg=CARD,fg=FG).pack(anchor="w")
+            inp[k]=dropdown(f,["Male","Female","Other"]) if k=="gender" else entry(f)
+    
+        def save():
+            if role=="employee":
+                m=inp["mobile"].get()
+                if not m.isdigit() or len(m)!=10:
+                    return messagebox.showerror("Error","Mobile number must be exactly 10 digits")
+            session["details"]={k:inp[k].get() for k in inp}
+            skills()
+    
+        button("Next",save)
+        button("Back",start,False)
+    
+    def skills():
+        clear()
+        title("Select Skills")
+        f=box()
+        sel=[(s,tk.IntVar()) for s in SKILLS]
+    
+        for s,v in sel:
+            tk.Checkbutton(f,text=s,variable=v,bg=CARD,fg=FG,
+                           selectcolor=CARD).pack(anchor="w")
+    
+        def save():
+            session["skills"]=";".join(s for s,v in sel if v.get())
+            creds()
+    
+        button("Next",save)
+        button("Back",start,False)
+    
+    def creds():
+        clear()
+        title("Create Account")
+        f=box()
+        tk.Label(f,text="Username",bg=CARD,fg=FG).pack(anchor="w")
+        u=entry(f)
+        tk.Label(f,text="Password",bg=CARD,fg=FG).pack(anchor="w")
+        p=entry(f,True)
+    
+        def save():
+            if not u.get() or not p.get():
+                return messagebox.showerror("Error","All fields required")
+            if find(u.get())[0]:
+                return messagebox.showerror("Error","Username already exists")
+    
+            row={"username":u.get(),"password":p.get(),"skills":session["skills"]}
+            row.update(session["details"])
+    
+            path=EMP if session["role"]=="employee" else REC
+            r=read(path)
+            r.append(row)
+            write(path,HDR[session["role"]],r)
+    
+            session.clear()
+            start()
+    
+        button("Finish",save)
+        button("Back",start,False)
+    
+    def login():
+        clear()
+        title("Login")
+        f=box()
+        tk.Label(f,text="Username",bg=CARD,fg=FG).pack(anchor="w")
+        u=entry(f)
+        tk.Label(f,text="Password",bg=CARD,fg=FG).pack(anchor="w")
+        p=entry(f,True)
+    
+        def do():
+            role,user=find(u.get())
+            if not user or user["password"]!=p.get():
+                return messagebox.showerror("Error","Invalid login")
+            session.update(username=u.get(),role=role)
+            match()
+    
+        button("Login",do)
+        button("Back",start,False)
+    
+    def match():
+        clear()
+        title("Matches")
+        out=tk.Text(root,width=70,height=18,bg=INP,fg=FG,relief="flat")
+        out.pack(pady=10)
+    
+        _,u=find(session["username"])
+        us=set(u["skills"].split(";"))
+        others=read(REC if session["role"]=="employee" else EMP)
+    
+        found=False
+        for o in others:
+            osk=set(o["skills"].split(";"))
+            common=us & osk
+            if common:
+                found=True
+                phone=o.get("mobile",o.get("contact","N/A"))
+                out.insert("end",
+                    f"{o['username']}\n"
+                    f"Email: {o['email']}\n"
+                    f"Phone: {phone}\n"
+                    f"Skills: {', '.join(common)}\n\n"
+                )
+    
+        if not found:
+            out.insert("end","No matches found.")
+    
+        out.config(state="disabled")
+        button("Home",start)
+    
+    ensure(EMP,HDR["employee"])
+    ensure(REC,HDR["recruiter"])
+    start()
+    root.mainloop()
