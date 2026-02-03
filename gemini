@@ -1,0 +1,454 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Feb  2 19:43:34 2026
+
+@author: ambade
+"""
+
+"""
+Created by DHiR
+
+@author:DHIR
+"""
+
+import tkinter as tk
+from tkinter import messagebox, ttk
+import csv, os
+
+BG,CARD,FG,BTN,BTN2,INP="#121212","#1e1e1e","#e5e7eb","#2563eb","#374151","#2a2a2a"
+EMP,REC,JOBS="employees.csv","recruiters.csv","jobs.csv"
+
+SKILLS=[
+    "Python","Java","C++","JavaScript","HTML","CSS","SQL",
+    "Data Structures","Algorithms","OOP","Machine Learning",
+    "Data Analysis","AI","Django","Flask","React","Node.js",
+    "Git","Linux","AWS","Cyber Security","Networking"
+]
+
+# Added website and industry to recruiter header
+# Added new Header for Jobs
+HDR={
+    "employee":["username","password","name","mobile","email","gender","age","address","skills"],
+    "recruiter":["username","password","company","contact","email","address","website","industry","skills"],
+    "job":["recruiter_user","title","salary","education","experience"]
+}
+
+session={}
+
+def ensure(p,h):
+    if not os.path.exists(p):
+        with open(p,"w",newline="") as f:
+            csv.writer(f).writerow(h)
+
+def read(p):
+    if not os.path.exists(p): return []
+    with open(p,newline="") as f:
+        return list(csv.DictReader(f))
+
+def write(p,h,r):
+    with open(p,"w",newline="") as f:
+        w=csv.DictWriter(f,fieldnames=h)
+        w.writeheader()
+        w.writerows(r)
+
+def find(u):
+    for role,p in [("employee",EMP),("recruiter",REC)]:
+        for r in read(p):
+            if r["username"]==u:
+                return role,r
+    return None,None
+
+root=tk.Tk()
+root.title("Jobsphere")
+root.configure(bg=BG)
+root.protocol("WM_DELETE_WINDOW",root.destroy)
+root.geometry("500x700") # Slightly taller for scrollbar
+
+style=ttk.Style()
+style.theme_use("default")
+style.configure("Dark.TCombobox",fieldbackground=INP,background=INP,foreground=FG)
+# Scrollbar style
+style.configure("Vertical.TScrollbar", gripcount=0,
+                background=BTN2, darkcolor=BG, lightcolor=BG,
+                troughcolor=BG, bordercolor=BG, arrowcolor=FG)
+
+def clear():
+    for w in root.winfo_children():
+        w.destroy()
+
+def title(t):
+    tk.Label(root,text=t,font=("Arial",18,"bold"),bg=BG,fg=FG).pack(pady=10)
+
+def box():
+    f=tk.Frame(root,bg=CARD,padx=18,pady=15)
+    f.pack(pady=10)
+    return f
+
+def entry(p,hide=False):
+    e=tk.Entry(p,bg=INP,fg=FG,insertbackground=FG,show="*" if hide else "")
+    e.pack(fill="x",pady=3)
+    return e
+
+def dropdown(p,v):
+    c=ttk.Combobox(p,values=v,state="readonly",style="Dark.TCombobox")
+    c.pack(fill="x",pady=3)
+    return c
+
+def button(t,c,pri=True, parent=None):
+    # Added parent argument to allow buttons in frames
+    p = parent if parent else root
+    tk.Button(p,text=t,command=c,width=20,bg=BTN if pri else BTN2,
+              fg="white",relief="flat").pack(pady=4)
+
+def start():
+    clear()
+    title("Jobsphere")
+    button("Register",role_select)
+    button("Login",login)
+    button("Quit",root.destroy,False)
+
+def role_select():
+    clear()
+    title("Select Role")
+    f=box()
+    role=tk.StringVar(value="employee")
+
+    for r in ("employee","recruiter"):
+        tk.Radiobutton(f,text=r.capitalize(),variable=role,value=r,
+                       bg=CARD,fg=FG,selectcolor=CARD).pack(anchor="w")
+
+    button("Next",lambda:(session.update(role=role.get()),details()))
+    button("Back",start,False)
+
+def details():
+    clear()
+    title("Details")
+    f=box()
+    role=session["role"]
+    inp={}
+
+    # This loop now automatically includes Website and Industry for recruiters
+    # because we updated HDR["recruiter"]
+    for k in HDR[role][2:-1]: 
+        lbl_text = k.replace("_"," ").capitalize()
+        if k == "mobile": lbl_text = "Mobile Number"
+        if k == "contact": lbl_text = "Contact Number"
+        
+        tk.Label(f,text=lbl_text,bg=CARD,fg=FG).pack(anchor="w")
+        inp[k]=dropdown(f,["Male","Female","Other"]) if k=="gender" else entry(f)
+
+    def save():
+        for k,v in inp.items():
+            if not v.get():
+                return messagebox.showerror("Error","All fields are required")
+        
+        # Phone validation
+        phone_key="mobile" if role=="employee" else "contact"
+        phone=inp[phone_key].get()
+        if not phone.isdigit() or len(phone)!=10:
+            return messagebox.showerror("Error","Phone number must be exactly 10 digits")
+        
+        if role=="employee":
+            age=inp["age"].get()
+            if not age.isdigit() or not (18 <= int(age) <= 60):
+                return messagebox.showerror("Error","Age must be between 18 and 60")
+
+        session["details"]={k:inp[k].get() for k in inp}
+        skills()
+
+    button("Next",save)
+    button("Back",start,False)
+
+def skills():
+    clear()
+    title("Select Skills")
+    f=box()
+    sel=[(s,tk.IntVar()) for s in SKILLS]
+
+    for s,v in sel:
+        tk.Checkbutton(f,text=s,variable=v,bg=CARD,fg=FG,
+                       selectcolor=CARD).pack(anchor="w")
+
+    def save():
+        chosen=[s for s,v in sel if v.get()]
+        if not chosen:
+            return messagebox.showerror("Error","Select at least one skill")
+        session["skills"]=";".join(chosen)
+        creds()
+
+    button("Next",save)
+    button("Back",start,False)
+
+def creds():
+    clear()
+    title("Create Account")
+    f=box()
+    tk.Label(f,text="Username",bg=CARD,fg=FG).pack(anchor="w")
+    u=entry(f)
+    tk.Label(f,text="Password",bg=CARD,fg=FG).pack(anchor="w")
+    p=entry(f,True)
+
+    def save():
+        if not u.get() or not p.get():
+            return messagebox.showerror("Error","All fields required")
+        if find(u.get())[0]:
+            return messagebox.showerror("Error","Username already exists")
+
+        row={"username":u.get(),"password":p.get(),"skills":session["skills"]}
+        row.update(session["details"])
+
+        path=EMP if session["role"]=="employee" else REC
+        r=read(path)
+        r.append(row)
+        write(path,HDR[session["role"]],r)
+
+        session.clear()
+        start()
+
+    button("Finish",save)
+    button("Back",start,False)
+
+def login():
+    clear()
+    title("Login")
+    f=box()
+    tk.Label(f,text="Username",bg=CARD,fg=FG).pack(anchor="w")
+    u=entry(f)
+    tk.Label(f,text="Password",bg=CARD,fg=FG).pack(anchor="w")
+    p=entry(f,True)
+
+    def do():
+        role,user=find(u.get())
+        if not user or user["password"]!=p.get():
+            return messagebox.showerror("Error","Invalid login")
+        session.update(username=u.get(),role=role)
+        match()
+
+    button("Login",do)
+    button("Back",start,False)
+
+# --- NEW FUNCTION: RECRUITER POST JOBS ---
+def post_job():
+    clear()
+    title("Post a Job Vacancy")
+    f=box()
+    
+    fields = [("Job Title/Name", "title"), ("Starting Salary", "salary"), 
+              ("Education Required", "education"), ("Experience (Years/None)", "experience")]
+    inp = {}
+    
+    for lbl, k in fields:
+        tk.Label(f, text=lbl, bg=CARD, fg=FG).pack(anchor="w")
+        inp[k] = entry(f)
+
+    def save_job():
+        for k, v in inp.items():
+            if not v.get():
+                return messagebox.showerror("Error", "All job fields are required")
+        
+        row = {"recruiter_user": session["username"]}
+        row.update({k: v.get() for k, v in inp.items()})
+        
+        r = read(JOBS)
+        r.append(row)
+        write(JOBS, HDR["job"], r)
+        
+        messagebox.showinfo("Success", "Job Posted Successfully!")
+        # Clear inputs to allow adding another
+        for v in inp.values(): v.delete(0, tk.END)
+
+    button("Post Job", save_job)
+    button("Back to Home", match, False)
+
+# --- NEW HELPER: SHOW COMPANY DETAILS POPUP ---
+def show_company_details(recruiter_data, matched_skills):
+    # Create a Popup window (Toplevel)
+    pop = tk.Toplevel(root)
+    pop.title(f"{recruiter_data['company']} - Details")
+    pop.configure(bg=BG)
+    pop.geometry("400x600")
+
+    # Header
+    tk.Label(pop, text=recruiter_data['company'], font=("Arial", 16, "bold"), bg=BG, fg=FG).pack(pady=10)
+    
+    # Recruiter Info Frame
+    info_f = tk.Frame(pop, bg=CARD, padx=10, pady=10)
+    info_f.pack(fill="x", padx=10)
+    
+    # Dynamic display of recruiter info
+    details_to_show = [
+        ("Industry", recruiter_data.get("industry", "N/A")),
+        ("Website", recruiter_data.get("website", "N/A")),
+        ("Email", recruiter_data.get("email", "N/A")),
+        ("Contact", recruiter_data.get("contact", "N/A")),
+        ("Address", recruiter_data.get("address", "N/A")),
+    ]
+    
+    for lbl, val in details_to_show:
+        tk.Label(info_f, text=f"{lbl}: {val}", bg=CARD, fg=FG, anchor="w").pack(fill="x")
+
+    tk.Label(info_f, text=f"\nMatched Skills: {matched_skills}", bg=CARD, fg=BTN, anchor="w", wraplength=350).pack(fill="x")
+
+    # Separator
+    tk.Label(pop, text="--- Open Job Vacancies ---", bg=BG, fg=FG, font=("Arial", 12)).pack(pady=10)
+
+    # Jobs List (Scrollable if many jobs)
+    job_canvas = tk.Canvas(pop, bg=BG, highlightthickness=0)
+    job_scroll = ttk.Scrollbar(pop, orient="vertical", command=job_canvas.yview)
+    job_frame = tk.Frame(job_canvas, bg=BG)
+
+    job_frame.bind("<Configure>", lambda e: job_canvas.configure(scrollregion=job_canvas.bbox("all")))
+    job_canvas.create_window((0, 0), window=job_frame, anchor="nw", width=380) # Width matches slightly less than geometry
+    job_canvas.configure(yscrollcommand=job_scroll.set)
+
+    job_canvas.pack(side="left", fill="both", expand=True, padx=10, pady=5)
+    job_scroll.pack(side="right", fill="y")
+
+    # Load Jobs
+    all_jobs = read(JOBS)
+    rec_jobs = [j for j in all_jobs if j["recruiter_user"] == recruiter_data["username"]]
+
+    if not rec_jobs:
+        tk.Label(job_frame, text="No active job postings listed.", bg=BG, fg="gray").pack(pady=10)
+    else:
+        for j in rec_jobs:
+            jf = tk.Frame(job_frame, bg=CARD, padx=10, pady=10, bd=1, relief="solid")
+            jf.pack(fill="x", pady=5)
+            
+            tk.Label(jf, text=j["title"], font=("Arial",11,"bold"), bg=CARD, fg=BTN).pack(anchor="w")
+            tk.Label(jf, text=f"Salary: {j['salary']}", bg=CARD, fg=FG).pack(anchor="w")
+            tk.Label(jf, text=f"Exp: {j['experience']} | Ed: {j['education']}", bg=CARD, fg=FG).pack(anchor="w")
+
+    tk.Button(pop, text="Close", command=pop.destroy, bg=BTN2, fg="white", relief="flat").pack(pady=5)
+
+def edit_details():
+    clear()
+    title("Edit Personal Details")
+    f=box()
+
+    role,user=find(session["username"])
+    inp={}
+
+    for k in HDR[role][2:-1]:
+        lbl = k.replace("_"," ").capitalize()
+        tk.Label(f,text=lbl,bg=CARD,fg=FG).pack(anchor="w")
+        e = dropdown(f,["Male","Female","Other"]) if k=="gender" else entry(f)
+        e.insert(0,user.get(k,""))
+        inp[k]=e
+
+    def next_step():
+        for v in inp.values():
+            if not v.get():
+                return messagebox.showerror("Error","All fields are required")
+        session["edit_details"]={k:inp[k].get() for k in inp}
+        edit_skills()
+
+    button("Next",next_step)
+    button("Back",match,False)
+
+def edit_skills():
+    clear()
+    title("Edit Skills")
+    f=box()
+
+    role,user=find(session["username"])
+    current=set(user["skills"].split(";"))
+    sel=[(s,tk.IntVar(value=1 if s in current else 0)) for s in SKILLS]
+
+    for s,v in sel:
+        tk.Checkbutton(f,text=s,variable=v,bg=CARD,fg=FG,
+                       selectcolor=CARD).pack(anchor="w")
+
+    def save():
+        chosen=[s for s,v in sel if v.get()]
+        if not chosen:
+            return messagebox.showerror("Error","Select at least one skill")
+
+        data=read(EMP if role=="employee" else REC)
+        for r in data:
+            if r["username"]==session["username"]:
+                r.update(session["edit_details"])
+                r["skills"]=";".join(chosen)
+                break
+        write(EMP if role=="employee" else REC, HDR[role], data)
+        session.pop("edit_details",None)
+        match()
+
+    button("Save",save)
+    button("Back",edit_details,False)
+
+def match():
+    clear()
+    title("Home / Matches")
+    
+    # Recruiter Specific Button
+    if session["role"] == "recruiter":
+        button("Post Job Vacancy", post_job)
+        tk.Label(root, text="----------------", bg=BG, fg=FG).pack()
+    
+    # --- SCROLLABLE AREA SETUP ---
+    container = tk.Frame(root, bg=BG)
+    container.pack(fill="both", expand=True, padx=20, pady=10)
+    
+    canvas = tk.Canvas(container, bg=INP, highlightthickness=0)
+    scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+    scrollable_frame = tk.Frame(canvas, bg=INP)
+
+    scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=420) # Width adjust
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+    # -----------------------------
+
+    _,u=find(session["username"])
+    us=set(u["skills"].split(";"))
+    others=read(REC if session["role"]=="employee" else EMP)
+    found=False
+    
+    for o in others:
+        osk=set(o["skills"].split(";"))
+        common=us & osk
+        if common:
+            found=True
+            
+            # CARD FOR EACH MATCH
+            card = tk.Frame(scrollable_frame, bg=CARD, pady=10, padx=10)
+            card.pack(fill="x", pady=5, padx=5)
+
+            display_name = o.get("company") if session["role"] == "employee" else o.get("name")
+            display_sub = o.get("industry", "") if session["role"] == "employee" else o.get("email")
+            
+            # Header of Card
+            tk.Label(card, text=display_name, font=("Arial",12,"bold"), bg=CARD, fg="white").pack(anchor="w")
+            if display_sub:
+                tk.Label(card, text=display_sub, font=("Arial",10), bg=CARD, fg="gray").pack(anchor="w")
+            
+            # Skills matched text
+            tk.Label(card, text=f"Skills: {', '.join(common)}", bg=CARD, fg=BTN, wraplength=380, justify="left").pack(anchor="w", pady=2)
+            
+            # INTERACTIVE BUTTON FOR EMPLOYEES
+            if session["role"] == "employee":
+                # Use lambda with default arg to capture 'o' (the specific recruiter data)
+                b = tk.Button(card, text="View Profile & Jobs", bg=BTN2, fg="white", relief="flat", font=("Arial", 9),
+                              command=lambda r=o, s=', '.join(common): show_company_details(r, s))
+                b.pack(anchor="e", pady=5)
+            else:
+                # Recruiters just see basic info
+                tk.Label(card, text=f"Phone: {o.get('mobile','N/A')}", bg=CARD, fg=FG).pack(anchor="w")
+
+    if not found:
+        tk.Label(scrollable_frame, text="No matches found based on skills.", bg=INP, fg=FG).pack(pady=20)
+
+    # Footer Buttons
+    f_btn = tk.Frame(root, bg=BG)
+    f_btn.pack(pady=10)
+    button("Edit Details", edit_details, False, parent=f_btn)
+    button("Logout", start, False, parent=f_btn)
+
+ensure(EMP,HDR["employee"])
+ensure(REC,HDR["recruiter"])
+ensure(JOBS,HDR["job"])
+start()
+root.mainloop()
